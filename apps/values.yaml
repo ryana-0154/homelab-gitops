@@ -25,6 +25,11 @@ apps:
         jsonPointers:
           - /spec/persistentVolumeClaimRetentionPolicy
           - /spec/revisionHistoryLimit
+        jqPathExpressions:
+          - .spec.volumeClaimTemplates[].apiVersion
+          - .spec.volumeClaimTemplates[].kind
+          - .spec.volumeClaimTemplates[].metadata.creationTimestamp
+          - .spec.volumeClaimTemplates[].status
     values: |
       global:
         tlsDisabled: true
@@ -71,6 +76,11 @@ apps:
         jsonPointers:
           - /spec/persistentVolumeClaimRetentionPolicy
           - /spec/revisionHistoryLimit
+        jqPathExpressions:
+          - .spec.volumeClaimTemplates[].apiVersion
+          - .spec.volumeClaimTemplates[].kind
+          - .spec.volumeClaimTemplates[].metadata.creationTimestamp
+          - .spec.volumeClaimTemplates[].status
     values: |
       global:
         tlsDisabled: true
