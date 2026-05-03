@@ -4,3 +4,8 @@ apps:
     branch: master
     path: kustomize
     namespace: podinfo
+  - name: pihole
+    repoUrl: https://github.com/ryana-0154/pihole-helm
+    branch: main
+    path: .
+    namespace: pihole
