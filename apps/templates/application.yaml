@@ -23,6 +23,12 @@ spec:
     {{- else }}
     targetRevision: {{ .branch | default "main" | quote }}
     path: {{ .path | quote }}
+    {{- if .values }}
+    helm:
+      releaseName: {{ .name | quote }}
+      values: |
+{{ .values | indent 8 }}
+    {{- end }}
     {{- end }}
   destination:
     server: https://kubernetes.default.svc

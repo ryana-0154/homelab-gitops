@@ -5,8 +5,24 @@ apps:
     path: kustomize
     namespace: podinfo
 
+  - name: sealed-secrets
+    repoUrl: https://bitnami-labs.github.io/sealed-secrets
+    chart: sealed-secrets
+    version: 2.16.1
+    namespace: sealed-secrets
+    values: |
+      fullnameOverride: sealed-secrets-controller
+
+  - name: pihole-secrets
+    repoUrl: https://github.com/ryana-0154/homelab-gitops
+    branch: main
+    path: secrets/pihole
+    namespace: pihole
+
   - name: pihole
     repoUrl: https://github.com/ryana-0154/pihole-helm
     branch: main
     path: .
     namespace: pihole
+    values: |
+      existingSecret: pihole-admin
