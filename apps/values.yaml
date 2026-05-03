@@ -4,8 +4,113 @@ apps:
     branch: master
     path: kustomize
     namespace: podinfo
+
   - name: pihole
     repoUrl: https://github.com/ryana-0154/pihole-helm
     branch: main
     path: .
     namespace: pihole
+
+  # Tiny standalone Vault whose only job is to hold a transit key that
+  # auto-unseals the main Vault. Manually unsealed once after each restart.
+  - name: vault-unsealer
+    repoUrl: https://helm.releases.hashicorp.com
+    chart: vault
+    version: 0.28.1
+    namespace: vault-unsealer
+    values: |
+      global:
+        tlsDisabled: true
+      server:
+        standalone:
+          enabled: true
+          config: |
+            ui = false
+            listener "tcp" {
+              tls_disable = 1
+              address = "[::]:8200"
+              cluster_address = "[::]:8201"
+            }
+            storage "file" {
+              path = "/vault/data"
+            }
+            service_registration "kubernetes" {}
+        ha:
+          enabled: false
+        dataStorage:
+          enabled: true
+          size: 1Gi
+        auditStorage:
+          enabled: false
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 128Mi
+      ui:
+        enabled: false
+      injector:
+        enabled: false
+
+  - name: vault
+    repoUrl: https://helm.releases.hashicorp.com
+    chart: vault
+    version: 0.28.1
+    namespace: vault
+    values: |
+      global:
+        tlsDisabled: true
+      server:
+        # Transit token created during unsealer bootstrap (see README).
+        # Pod will not start until this secret exists in the vault namespace.
+        extraSecretEnvironmentVars:
+          - envName: VAULT_TOKEN
+            secretName: vault-unsealer-token
+            secretKey: token
+        ha:
+          enabled: true
+          replicas: 1
+          raft:
+            enabled: true
+            setNodeId: true
+            config: |
+              ui = true
+              listener "tcp" {
+                tls_disable = 1
+                address = "[::]:8200"
+                cluster_address = "[::]:8201"
+              }
+              storage "raft" {
+                path = "/vault/data"
+              }
+              seal "transit" {
+                address         = "http://vault-unsealer.vault-unsealer.svc.cluster.local:8200"
+                disable_renewal = "false"
+                key_name        = "autounseal"
+                mount_path      = "transit/"
+                tls_skip_verify = "true"
+              }
+              service_registration "kubernetes" {}
+        dataStorage:
+          enabled: true
+          size: 10Gi
+        auditStorage:
+          enabled: true
+          size: 5Gi
+      ui:
+        enabled: true
+        serviceType: ClusterIP
+      injector:
+        enabled: false
+
+  - name: vault-secrets-operator
+    repoUrl: https://helm.releases.hashicorp.com
+    chart: vault-secrets-operator
+    version: 0.8.1
+    namespace: vault-secrets-operator
+    values: |
+      defaultVaultConnection:
+        enabled: true
+        address: http://vault.vault.svc.cluster.local:8200
+        skipTLSVerify: true

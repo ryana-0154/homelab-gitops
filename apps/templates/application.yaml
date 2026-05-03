@@ -11,8 +11,19 @@ spec:
   project: default
   source:
     repoURL: {{ .repoUrl | quote }}
+    {{- if .chart }}
+    chart: {{ .chart | quote }}
+    targetRevision: {{ .version | quote }}
+    helm:
+      releaseName: {{ .name | quote }}
+      {{- with .values }}
+      values: |
+{{ . | indent 8 }}
+      {{- end }}
+    {{- else }}
     targetRevision: {{ .branch | default "main" | quote }}
     path: {{ .path | quote }}
+    {{- end }}
   destination:
     server: https://kubernetes.default.svc
     namespace: {{ .namespace | quote }}
