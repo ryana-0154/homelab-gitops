@@ -29,12 +29,12 @@ apps:
             listener "tcp" {
               tls_disable = 1
               address = "[::]:8200"
-              cluster_address = "[::]:8201"
             }
             storage "file" {
               path = "/vault/data"
             }
-            service_registration "kubernetes" {}
+            # No service_registration — file storage isn't HA-capable, and
+            # service_registration requires HA storage.
         ha:
           enabled: false
         dataStorage:
