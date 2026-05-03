@@ -55,18 +55,40 @@ wait_pod_running "$UNSEALER_NS" "$UNSEALER_POD"
 
 UNSEALER_KEYS_FILE="${SECRETS_DIR}/unsealer-init.json"
 
+# `vault status` exits 0 unsealed, 1 error, 2 sealed. We don't want that
+# bleeding into pipefail, so capture stdout first then jq separately.
+vault_status_json() {
+  local ns="$1" pod="$2"
+  kubectl -n "$ns" exec "$pod" -- vault status -format=json 2>/dev/null || true
+}
+
 unsealer_initialized() {
-  kvault "$UNSEALER_NS" "$UNSEALER_POD" vault status -format=json 2>/dev/null \
-    | jq -e '.initialized == true' >/dev/null
+  vault_status_json "$UNSEALER_NS" "$UNSEALER_POD" \
+    | jq -e '.initialized == true' >/dev/null 2>&1
 }
 
 if unsealer_initialized; then
   skip "unsealer already initialized"
-  [[ -f "$UNSEALER_KEYS_FILE" ]] || warn "${UNSEALER_KEYS_FILE} missing — you'll need its keys to unseal after restarts"
+  if [[ ! -s "$UNSEALER_KEYS_FILE" ]]; then
+    die "unsealer is initialized but ${UNSEALER_KEYS_FILE} is missing or empty — keys are unrecoverable. Wipe and re-init:
+    kubectl -n ${UNSEALER_NS} delete pod ${UNSEALER_POD}
+    kubectl -n ${UNSEALER_NS} delete pvc data-${UNSEALER_POD}
+  Then re-run this script."
+  fi
 else
   log "initializing unsealer"
-  kvault "$UNSEALER_NS" "$UNSEALER_POD" \
-    vault operator init -format=json > "$UNSEALER_KEYS_FILE"
+  # Write JSON inside the pod first, then copy it out — avoids any host-side
+  # stdout filtering / shell wrappers truncating the keys on the way through.
+  kubectl -n "$UNSEALER_NS" exec "$UNSEALER_POD" -- sh -c \
+    'vault operator init -format=json > /tmp/vault-init.json'
+  kubectl -n "$UNSEALER_NS" cp \
+    "${UNSEALER_POD}:/tmp/vault-init.json" "$UNSEALER_KEYS_FILE"
+  kubectl -n "$UNSEALER_NS" exec "$UNSEALER_POD" -- rm -f /tmp/vault-init.json
+
+  [[ -s "$UNSEALER_KEYS_FILE" ]] || die "init succeeded but ${UNSEALER_KEYS_FILE} is empty — aborting before keys are lost"
+  jq -e '.unseal_keys_b64 | length >= 3' "$UNSEALER_KEYS_FILE" >/dev/null \
+    || die "${UNSEALER_KEYS_FILE} does not contain unseal_keys_b64 — aborting"
+
   chmod 600 "$UNSEALER_KEYS_FILE"
   log "unsealer keys written to ${UNSEALER_KEYS_FILE}"
 fi
@@ -74,16 +96,18 @@ fi
 # --- 2. unseal unsealer ------------------------------------------------------
 
 unsealer_sealed() {
-  kvault "$UNSEALER_NS" "$UNSEALER_POD" vault status -format=json 2>/dev/null \
-    | jq -e '.sealed == true' >/dev/null
+  vault_status_json "$UNSEALER_NS" "$UNSEALER_POD" \
+    | jq -e '.sealed == true' >/dev/null 2>&1
 }
 
 if unsealer_sealed; then
   [[ -f "$UNSEALER_KEYS_FILE" ]] || die "unsealer is sealed but ${UNSEALER_KEYS_FILE} is missing — cannot unseal automatically"
   log "unsealing unsealer"
   for i in 0 1 2; do
-    KEY="$(jq -r ".unseal_keys_b64[$i]" "$UNSEALER_KEYS_FILE")"
-    kvault "$UNSEALER_NS" "$UNSEALER_POD" vault operator unseal "$KEY" >/dev/null
+    KEY="$(jq -r ".unseal_keys_b64[$i] // .keys_b64[$i] // empty" "$UNSEALER_KEYS_FILE")"
+    [[ -n "$KEY" ]] || die "could not extract unseal key $i from ${UNSEALER_KEYS_FILE}"
+    kubectl -n "$UNSEALER_NS" exec "$UNSEALER_POD" \
+      -- vault operator unseal "$KEY" >/dev/null
   done
 else
   skip "unsealer already unsealed"
@@ -154,7 +178,8 @@ wait_pod_running "$VAULT_NS" "$VAULT_POD"
 
 # Pod may be restarting to pick up the secret — give it a chance.
 for _ in $(seq 1 30); do
-  if kvault "$VAULT_NS" "$VAULT_POD" vault status -format=json >/dev/null 2>&1; then
+  # Reachable if we get any JSON response, regardless of seal state.
+  if vault_status_json "$VAULT_NS" "$VAULT_POD" | jq -e '.' >/dev/null 2>&1; then
     break
   fi
   sleep 5
@@ -163,17 +188,27 @@ done
 VAULT_KEYS_FILE="${SECRETS_DIR}/vault-init.json"
 
 vault_initialized() {
-  kvault "$VAULT_NS" "$VAULT_POD" vault status -format=json 2>/dev/null \
-    | jq -e '.initialized == true' >/dev/null
+  vault_status_json "$VAULT_NS" "$VAULT_POD" \
+    | jq -e '.initialized == true' >/dev/null 2>&1
 }
 
 if vault_initialized; then
   skip "main vault already initialized"
+  if [[ ! -s "$VAULT_KEYS_FILE" ]]; then
+    die "main vault is initialized but ${VAULT_KEYS_FILE} is missing — recovery keys + root token are unrecoverable from outside"
+  fi
 else
   log "initializing main vault (recovery keys, since transit handles unsealing)"
-  kvault "$VAULT_NS" "$VAULT_POD" \
-    vault operator init -recovery-shares=5 -recovery-threshold=3 -format=json \
-    > "$VAULT_KEYS_FILE"
+  kubectl -n "$VAULT_NS" exec "$VAULT_POD" -- sh -c \
+    'vault operator init -recovery-shares=5 -recovery-threshold=3 -format=json > /tmp/vault-init.json'
+  kubectl -n "$VAULT_NS" cp \
+    "${VAULT_POD}:/tmp/vault-init.json" "$VAULT_KEYS_FILE"
+  kubectl -n "$VAULT_NS" exec "$VAULT_POD" -- rm -f /tmp/vault-init.json
+
+  [[ -s "$VAULT_KEYS_FILE" ]] || die "main vault init succeeded but ${VAULT_KEYS_FILE} is empty — aborting"
+  jq -e '.root_token' "$VAULT_KEYS_FILE" >/dev/null \
+    || die "${VAULT_KEYS_FILE} does not contain root_token — aborting"
+
   chmod 600 "$VAULT_KEYS_FILE"
   log "main vault recovery keys + root token written to ${VAULT_KEYS_FILE}"
 fi
@@ -184,8 +219,8 @@ VAULT_ROOT_TOKEN="$(jq -r '.root_token' "$VAULT_KEYS_FILE" 2>/dev/null || true)"
 
 # Wait until auto-unseal lands.
 for _ in $(seq 1 30); do
-  if ! kvault "$VAULT_NS" "$VAULT_POD" vault status -format=json 2>/dev/null \
-       | jq -e '.sealed == true' >/dev/null; then
+  if ! vault_status_json "$VAULT_NS" "$VAULT_POD" \
+       | jq -e '.sealed == true' >/dev/null 2>&1; then
     break
   fi
   sleep 5
