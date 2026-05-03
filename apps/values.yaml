@@ -18,6 +18,13 @@ apps:
     chart: vault
     version: 0.28.1
     namespace: vault-unsealer
+    # Vault chart's StatefulSet doesn't render fields the API server defaults.
+    ignoreDifferences:
+      - group: apps
+        kind: StatefulSet
+        jsonPointers:
+          - /spec/persistentVolumeClaimRetentionPolicy
+          - /spec/revisionHistoryLimit
     values: |
       global:
         tlsDisabled: true
@@ -58,6 +65,12 @@ apps:
     chart: vault
     version: 0.28.1
     namespace: vault
+    ignoreDifferences:
+      - group: apps
+        kind: StatefulSet
+        jsonPointers:
+          - /spec/persistentVolumeClaimRetentionPolicy
+          - /spec/revisionHistoryLimit
     values: |
       global:
         tlsDisabled: true
