@@ -1,26 +1,26 @@
+{{- range .Values.apps }}
+---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: root
+  name: {{ .name }}
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
-    # Replace with the URL of this gitops repo
-    repoURL: git@github.com:ryana-0154/homelab-gitops.git
-    targetRevision: main
-    path: apps
-    helm:
-      valueFiles:
-        - values.yaml
+    repoURL: {{ .repoUrl | quote }}
+    targetRevision: {{ .branch | default "main" | quote }}
+    path: {{ .path | quote }}
   destination:
     server: https://kubernetes.default.svc
-    namespace: argocd
+    namespace: {{ .namespace | quote }}
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true
+{{- end }}

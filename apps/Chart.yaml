@@ -1,0 +1,6 @@
+apiVersion: v2
+name: apps
+description: App-of-apps Helm chart that renders ArgoCD Applications from values.yaml
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

@@ -1,0 +1,6 @@
+apps:
+  - name: podinfo
+    repoUrl: https://github.com/stefanprodan/podinfo
+    branch: master
+    path: kustomize
+    namespace: podinfo
