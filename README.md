@@ -10,13 +10,22 @@ ArgoCD app-of-apps for homelab cluster.
 ## Bootstrap
 
 1. Edit `bootstrap/root-app.yaml` and set `spec.source.repoURL` to this repo's URL.
-2. Apply it to the cluster:
+2. Run the cluster bootstrap script (idempotent, safe to re-run):
 
    ```sh
-   kubectl apply -n argocd -f bootstrap/root-app.yaml
+   ./scripts/cluster-bootstrap.sh
    ```
 
 ArgoCD then reconciles `apps/` and creates every child `Application` defined in `apps/values.yaml`.
+
+Once `vault` and `vault-unsealer` pods are up, finish Vault setup:
+
+```sh
+./scripts/vault-bootstrap.sh
+```
+
+See [Vault bootstrap](#vault-bootstrap) for what the script does and which
+files it leaves behind in `.secrets/`.
 
 ## Adding an app
 
@@ -66,6 +75,11 @@ transit key, the main `vault` (auto-unseals via that key), and `vault-secrets-op
 
 The main Vault pod will **CrashLoopBackOff until step 4 finishes** (it's
 waiting on the `vault-unsealer-token` secret). That's expected.
+
+> The script `scripts/vault-bootstrap.sh` automates everything in this section
+> idempotently. The manual steps below are for reference / disaster recovery.
+> The script writes sensitive material to `.secrets/` (gitignored); move it to
+> your password manager and `rm -rf .secrets/` once stored.
 
 ### 1. Bootstrap the unsealer (one time)
 
