@@ -90,12 +90,15 @@ apps:
 
       clusterMetrics:
         enabled: true
+        collector: alloy-metrics
 
       clusterEvents:
         enabled: true
+        collector: alloy-metrics
 
       podLogsViaLoki:
         enabled: true
+        collector: alloy-logs
 
       annotationAutodiscovery:
         enabled: true
