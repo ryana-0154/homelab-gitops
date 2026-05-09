@@ -26,3 +26,15 @@ apps:
     namespace: pihole
     values: |
       existingSecret: pihole-admin
+
+  - name: envoy-gateway
+    repoUrl: oci://docker.io/envoyproxy
+    chart: gateway-helm
+    version: v1.4.0
+    namespace: envoy-gateway-system
+
+  - name: gateway-resources
+    repoUrl: https://github.com/ryana-0154/homelab-gitops
+    branch: main
+    path: gateway
+    namespace: envoy-gateway-system

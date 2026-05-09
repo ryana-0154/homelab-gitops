@@ -122,6 +122,64 @@ The `pihole-secrets` Argo app applies `secrets/pihole/`, materializing the
 `pihole-admin` Secret. The pihole release is configured with
 `existingSecret: pihole-admin` and consumes it on next reconcile.
 
+## Ingress — Envoy Gateway (Gateway API)
+
+The cluster uses the Kubernetes Gateway API (the successor to ingress-nginx),
+implemented by [Envoy Gateway](https://gateway.envoyproxy.io/). Two apps in
+`apps/values.yaml` set this up:
+
+- `envoy-gateway` — the controller (Helm chart, `envoy-gateway-system` ns).
+- `gateway-resources` — the `GatewayClass`, `Gateway`, and per-app `HTTPRoute`s
+  in `gateway/`.
+
+### Post-install steps
+
+Once both apps are Synced:
+
+1. **Find the gateway's external IP** (provided by your existing LoadBalancer):
+
+   ```sh
+   kubectl -n envoy-gateway-system get gateway homelab \
+     -o jsonpath='{.status.addresses[0].value}'
+   ```
+
+2. **Add a Pi-hole local DNS record** pointing `argocd.homelab.lan` (or
+   whatever hostname you set in `gateway/argocd-route.yaml`) to that IP.
+
+3. **Flip ArgoCD into insecure mode** so the gateway can terminate the
+   connection over plain HTTP (the gateway listens on :80; TLS is a future
+   step with cert-manager):
+
+   ```sh
+   kubectl -n argocd patch configmap argocd-cmd-params-cm \
+     --type merge -p '{"data":{"server.insecure":"true"}}'
+   kubectl -n argocd rollout restart deploy argocd-server
+   ```
+
+### Adding a route for another app
+
+Drop another `HTTPRoute` into `gateway/` referencing the `homelab` Gateway:
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: myapp
+  namespace: myapp
+spec:
+  parentRefs:
+    - name: homelab
+      namespace: envoy-gateway-system
+  hostnames:
+    - myapp.homelab.lan
+  rules:
+    - backendRefs:
+        - name: myapp
+          port: 80
+```
+
+Commit, add the Pi-hole record, done.
+
 ### Disaster recovery
 
 The sealed-secrets controller's private key is the master key for every
