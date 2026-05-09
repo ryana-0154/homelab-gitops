@@ -13,12 +13,6 @@ apps:
     values: |
       fullnameOverride: sealed-secrets-controller
 
-  - name: pihole-secrets
-    repoUrl: https://github.com/ryana-0154/homelab-gitops
-    branch: main
-    path: secrets/pihole
-    namespace: pihole
-
   - name: pihole
     repoUrl: https://github.com/ryana-0154/pihole-helm
     branch: main
