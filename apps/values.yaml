@@ -112,6 +112,6 @@ apps:
         alloy-metrics:
           presets: [clustered, statefulset]
         alloy-singleton:
-          enabled: true
+          enabled: false
         alloy-logs:
           presets: [filesystem-log-reader, daemonset]
