@@ -33,6 +33,21 @@ apps:
     version: v1.4.0
     namespace: envoy-gateway-system
 
+  - name: cert-manager
+    repoUrl: https://charts.jetstack.io
+    chart: cert-manager
+    version: v1.16.2
+    namespace: cert-manager
+    values: |
+      crds:
+        enabled: true
+
+  - name: cert-manager-issuers
+    repoUrl: https://github.com/ryana-0154/homelab-gitops
+    branch: main
+    path: certs
+    namespace: cert-manager
+
   - name: gateway-resources
     repoUrl: https://github.com/ryana-0154/homelab-gitops
     branch: main
