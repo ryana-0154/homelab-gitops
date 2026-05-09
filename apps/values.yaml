@@ -28,7 +28,7 @@ apps:
       existingSecret: pihole-admin
 
   - name: envoy-gateway
-    repoUrl: oci://docker.io/envoyproxy
+    repoUrl: docker.io/envoyproxy
     chart: gateway-helm
     version: v1.4.0
     namespace: envoy-gateway-system
