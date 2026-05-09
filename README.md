@@ -180,6 +180,38 @@ spec:
 
 Commit, add the Pi-hole record, done.
 
+## Monitoring — Grafana Cloud
+
+The `monitoring` app installs the
+[`k8s-monitoring`](https://github.com/grafana/k8s-monitoring-helm) chart
+(Grafana Alloy + node-exporter + kube-state-metrics) and ships metrics +
+logs to Grafana Cloud.
+
+Edit scrape targets / toggles inline in `apps/values.yaml` under the
+`monitoring` entry. The remote-write URLs and cluster name live there too;
+only the credentials are sealed.
+
+### Bootstrap credentials
+
+Get a Grafana Cloud Access Policy token with `metrics:write` and
+`logs:write` scopes (Grafana Cloud → *Access Policies* → *Add token*),
+note the metrics + logs instance IDs (usernames) from the data source
+"send Prometheus metrics" / "send Loki logs" pages, then:
+
+```sh
+./scripts/seal-grafana-cloud.sh
+```
+
+This writes `secrets/monitoring/grafana-cloud-credentials.yaml`. Commit
+and push — the `monitoring-secrets` Argo app applies it; the
+`monitoring` release picks it up via `existingSecret`.
+
+### Adjusting the remote-write endpoints
+
+Replace the placeholder hostnames in `apps/values.yaml` (`prometheus-prod-13-...`
+and `logs-prod-006...`) with the URLs shown in your Grafana Cloud stack's
+Prometheus / Loki data source pages.
+
 ### Disaster recovery
 
 The sealed-secrets controller's private key is the master key for every

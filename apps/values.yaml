@@ -47,3 +47,64 @@ apps:
     branch: main
     path: gateway
     namespace: envoy-gateway-system
+
+  - name: monitoring-secrets
+    repoUrl: https://github.com/ryana-0154/homelab-gitops
+    branch: main
+    path: secrets/monitoring
+    namespace: monitoring
+
+  - name: monitoring
+    repoUrl: https://grafana.github.io/helm-charts
+    chart: k8s-monitoring
+    version: 4.1.1
+    namespace: monitoring
+    values: |
+      cluster:
+        name: homelab
+
+      destinations:
+        grafana-cloud-metrics:
+          type: prometheus
+          url: https://prometheus-prod-55-prod-gb-south-1.grafana.net/api/prom
+          auth:
+            type: basic
+            usernameKey: metrics-username
+            passwordKey: password
+          secret:
+            create: false
+            name: grafana-cloud-credentials
+            namespace: monitoring
+
+        grafana-cloud-logs:
+          type: loki
+          url: https://logs-prod-035.grafana.net
+          auth:
+            type: basic
+            usernameKey: logs-username
+            passwordKey: password
+          secret:
+            create: false
+            name: grafana-cloud-credentials
+            namespace: monitoring
+
+      clusterMetrics:
+        enabled: true
+
+      clusterEvents:
+        enabled: true
+
+      podLogsViaLoki:
+        enabled: true
+
+      annotationAutodiscovery:
+        enabled: true
+        collector: alloy-metrics
+
+      collectors:
+        alloy-metrics:
+          presets: [clustered, statefulset]
+        alloy-singleton:
+          enabled: true
+        alloy-logs:
+          presets: [filesystem-log-reader, daemonset]
