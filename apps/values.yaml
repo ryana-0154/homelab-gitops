@@ -91,6 +91,8 @@ apps:
       clusterMetrics:
         enabled: true
         collector: alloy-metrics
+
+      telemetryServices:
         kube-state-metrics:
           deploy: true
 
