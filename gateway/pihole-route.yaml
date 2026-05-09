@@ -5,7 +5,9 @@ metadata:
   namespace: pihole
 spec:
   parentRefs:
-    - name: homelab
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: homelab
       namespace: envoy-gateway-system
   hostnames:
     - pihole.homelab.lan
@@ -26,5 +28,8 @@ spec:
             type: PathPrefix
             value: /
       backendRefs:
-        - name: pihole-web
+        - group: ""
+          kind: Service
+          name: pihole-web
           port: 80
+          weight: 1
