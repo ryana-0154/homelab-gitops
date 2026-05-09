@@ -76,17 +76,7 @@ apps:
             name: grafana-cloud-credentials
             namespace: monitoring
 
-        grafana-cloud-logs:
-          type: loki
-          url: https://logs-prod-035.grafana.net
-          auth:
-            type: basic
-            usernameKey: logs-username
-            passwordKey: password
-          secret:
-            create: false
-            name: grafana-cloud-credentials
-            namespace: monitoring
+        # logs destination disabled until alloy-logs is re-enabled.
 
       clusterMetrics:
         enabled: true
@@ -96,17 +86,15 @@ apps:
         kube-state-metrics:
           deploy: true
 
+      # Keep only metrics for now — alloy-logs daemonset + podLogsViaLoki
+      # was the heaviest piece of the stack and the cluster doesn't have
+      # the RAM headroom for it yet.
       clusterEvents:
-        enabled: true
-        collector: alloy-metrics
-
+        enabled: false
       podLogsViaLoki:
-        enabled: true
-        collector: alloy-logs
-
+        enabled: false
       annotationAutodiscovery:
-        enabled: true
-        collector: alloy-metrics
+        enabled: false
 
       collectors:
         alloy-metrics:
@@ -114,4 +102,4 @@ apps:
         alloy-singleton:
           enabled: false
         alloy-logs:
-          presets: [filesystem-log-reader, daemonset]
+          enabled: false
