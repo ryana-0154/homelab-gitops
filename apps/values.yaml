@@ -15,12 +15,6 @@ apps:
     values: |
       existingSecret: pihole-admin
 
-  - name: envoy-gateway
-    repoUrl: docker.io/envoyproxy
-    chart: gateway-helm
-    version: v1.4.0
-    namespace: envoy-gateway-system
-
   - name: cert-manager
     repoUrl: https://charts.jetstack.io
     chart: cert-manager
@@ -36,11 +30,11 @@ apps:
     path: certs
     namespace: cert-manager
 
-  - name: gateway-resources
+  - name: ingress-resources
     repoUrl: https://github.com/ryana-0154/homelab-gitops
     branch: main
-    path: gateway
-    namespace: envoy-gateway-system
+    path: ingress
+    namespace: kube-system
 
   - name: monitoring-secrets
     repoUrl: https://github.com/ryana-0154/homelab-gitops

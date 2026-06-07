@@ -1,0 +1,23 @@
+# Traefik default TLS store — serves the cert-manager wildcard cert for
+# *.homelab.lan on every HTTPS route that doesn't name its own secret.
+# Must be named "default" and live in Traefik's namespace (kube-system),
+# alongside the homelab-wildcard-tls secret cert-manager issues there.
+apiVersion: traefik.io/v1alpha1
+kind: TLSStore
+metadata:
+  name: default
+  namespace: kube-system
+spec:
+  defaultCertificate:
+    secretName: homelab-wildcard-tls
+---
+# Shared http→https redirect, referenced by the per-app `web` routers.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  namespace: kube-system
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true

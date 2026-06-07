@@ -122,33 +122,38 @@ The `pihole-secrets` Argo app applies `secrets/pihole/`, materializing the
 `pihole-admin` Secret. The pihole release is configured with
 `existingSecret: pihole-admin` and consumes it on next reconcile.
 
-## Ingress — Envoy Gateway (Gateway API)
+## Ingress — Traefik (k3s built-in)
 
-The cluster uses the Kubernetes Gateway API (the successor to ingress-nginx),
-implemented by [Envoy Gateway](https://gateway.envoyproxy.io/). Two apps in
-`apps/values.yaml` set this up:
+The cluster uses the Traefik ingress controller that ships with k3s (running in
+the `kube-system` namespace). This repo no longer deploys its own ingress
+controller — the Envoy Gateway stack that previously lived here was removed in
+favour of the built-in Traefik.
 
-- `envoy-gateway` — the controller (Helm chart, `envoy-gateway-system` ns).
-- `gateway-resources` — the `GatewayClass`, `Gateway`, and per-app `HTTPRoute`s
-  in `gateway/`.
+The `ingress-resources` app in `apps/values.yaml` syncs `ingress/`:
+
+- `tlsstore.yaml` — a Traefik default [`TLSStore`](https://doc.traefik.io/traefik/https/tls/)
+  named `default` (in `kube-system`) that serves the cert-manager wildcard cert
+  `homelab-wildcard-tls` for `*.homelab.lan` on every HTTPS route, plus a shared
+  `redirect-https` `Middleware`.
+- `argocd.yaml`, `pihole.yaml` — per-app `IngressRoute`s: HTTPS on the
+  `websecure` entrypoint (TLS terminated with the default wildcard cert) and an
+  http→https redirect on `web`.
+
+The wildcard cert is issued by cert-manager into `kube-system` (see
+`certs/cluster-issuers.yaml`).
 
 ### Post-install steps
 
-Once both apps are Synced:
-
-1. **Find the gateway's external IP** (provided by your existing LoadBalancer):
+1. **Add Pi-hole local DNS records** pointing each hostname
+   (`argocd.homelab.lan`, `pihole.homelab.lan`) at the Traefik LoadBalancer IP:
 
    ```sh
-   kubectl -n envoy-gateway-system get gateway homelab \
-     -o jsonpath='{.status.addresses[0].value}'
+   kubectl -n kube-system get svc traefik \
+     -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
    ```
 
-2. **Add a Pi-hole local DNS record** pointing `argocd.homelab.lan` (or
-   whatever hostname you set in `gateway/argocd-route.yaml`) to that IP.
-
-3. **Flip ArgoCD into insecure mode** so the gateway can terminate the
-   connection over plain HTTP (the gateway listens on :80; TLS is a future
-   step with cert-manager):
+2. **Flip ArgoCD into insecure mode** so Traefik can terminate TLS and forward
+   plain HTTP to `argocd-server:80`:
 
    ```sh
    kubectl -n argocd patch configmap argocd-cmd-params-cm \
@@ -158,27 +163,28 @@ Once both apps are Synced:
 
 ### Adding a route for another app
 
-Drop another `HTTPRoute` into `gateway/` referencing the `homelab` Gateway:
+Drop an `IngressRoute` into `ingress/` referencing the shared redirect
+middleware, then commit:
 
 ```yaml
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
 metadata:
   name: myapp
   namespace: myapp
 spec:
-  parentRefs:
-    - name: homelab
-      namespace: envoy-gateway-system
-  hostnames:
-    - myapp.homelab.lan
-  rules:
-    - backendRefs:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`myapp.homelab.lan`)
+      kind: Rule
+      services:
         - name: myapp
           port: 80
+  tls: {}
 ```
 
-Commit, add the Pi-hole record, done.
+Add the Pi-hole DNS record, done. (Add a matching `web`-entrypoint route with
+the `redirect-https` middleware if you want http→https for it too.)
 
 ## Monitoring — Grafana Cloud
 

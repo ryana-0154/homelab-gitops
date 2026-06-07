@@ -1,0 +1,37 @@
+# HTTPS — terminates TLS with the default wildcard cert (TLSStore "default")
+# and forwards to argocd-server. Requires argocd server.insecure=true so the
+# backend speaks plain HTTP on :80 (see README).
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`argocd.homelab.lan`)
+      kind: Rule
+      services:
+        - name: argocd-server
+          port: 80
+  tls: {}
+---
+# HTTP — redirect to HTTPS.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: argocd-redirect
+  namespace: argocd
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`argocd.homelab.lan`)
+      kind: Rule
+      middlewares:
+        - name: redirect-https
+          namespace: kube-system
+      services:
+        - name: argocd-server
+          port: 80

@@ -35,7 +35,7 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: homelab-wildcard
-  namespace: envoy-gateway-system
+  namespace: kube-system
 spec:
   secretName: homelab-wildcard-tls
   duration: 8760h     # 1 year
