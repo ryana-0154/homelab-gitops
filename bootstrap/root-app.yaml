@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     # Replace with the URL of this gitops repo
-    repoURL: git@github.com:ryana-0154/homelab-gitops.git
+    repoURL: https://github.com/ryana-0154/homelab-gitops.git
     targetRevision: main
     path: apps
     helm:
